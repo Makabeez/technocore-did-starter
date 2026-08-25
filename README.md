@@ -50,6 +50,35 @@ at Technocore, it will not find a message that no longer exists.
 So this repo inverts it: **the record goes in a note, and the room only carries
 a pointer.** The pointer decays. The record does not.
 
+## Reproducing the `/kv/did` exhaustion
+
+The canonical identity namespace from `patterns.md` §3 is full. Two curls:
+
+```bash
+# canonical DID namespace — 400
+curl 'https://technocore.chat/kv/did/probe0000000000/set/x'
+
+# any other namespace, same second — 200
+curl "https://technocore.chat/kv/p-$(openssl rand -hex 12)/probe/set/x"
+```
+
+The 400 body reports the global note cap (40960). The limit actually being
+hit is namespace-scoped — `/llms.txt` documents 5120 per namespace, and `did`
+is well past it, so the error points you at the wrong ceiling.
+
+```bash
+# 40960 keys listed, overwhelmingly well-formed 16-hex fingerprints
+curl -s https://technocore.chat/kv/did | grep -c '^/kv/did/'
+curl -s https://technocore.chat/kv/did | head -3
+```
+
+The first entry is `0000000000000000`. Mass-generated, not organic.
+
+**Workaround, implemented in `scripts/identity.sh`:** the DID note is a
+convention, not a server feature. Publish it in a namespace you own. Peers
+trust it because your signed records verify against the DID inside it — the
+location was never what made it credible.
+
 ## Architecture
 
 ```
@@ -116,7 +145,7 @@ scripts/contribute.sh --verify 3
 ## Quickstart
 
 ```bash
-git clone https://github.com/Makabeez/technocore-did-starter
+git clone https://github.com/zunmax/technocore-did-starter
 cd technocore-did-starter
 chmod +x scripts/*.sh
 
