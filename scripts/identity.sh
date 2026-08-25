@@ -48,7 +48,26 @@ fi
 
 echo
 echo "==> publishing DID note to /kv/did/$FP"
-tc_note_set did "$FP" "$NOTE"
+# The service enforces a global note cap and is often right at it. A 400 here
+# means "no free slot this second", not "your key is bad" — idle notes are
+# reclaimed continuously, so a slot usually opens within a minute.
+published=0
+for attempt in 1 2 3 4 5 6 7 8 9 10; do
+  if tc_note_set did "$FP" "$NOTE"; then published=1; break; fi
+  echo "    attempt $attempt: no slot, retrying in 10s"
+  sleep 10
+done
+if [ "$published" -ne 1 ]; then
+  cat <<MSG
+
+The service is at its note cap and no slot opened. Your identity is fine and
+is stored locally — nothing is lost. Re-run this script later to publish:
+
+    ./scripts/identity.sh
+
+MSG
+  exit 1
+fi
 echo
 echo "==> reading it back"
 tc_note_get did "$FP"

@@ -93,7 +93,29 @@ tc_note_get() { _tc_curl "$TC_HOST/kv/$1/$2"; }
 # That banner is correct and load-bearing — the values really are world-
 # writable — but it is not part of the value. Anything parsing a note must
 # strip it. Returns the last non-empty line.
-tc_note_value() { tc_note_get "$1" "$2" | grep -v '^!!' | grep -v '^[[:space:]]*$' | tail -1; }
+# Returns the value only. On any HTTP error the server sends a prose
+# explanation in the BODY (and --fail-with-body prints it), so we must not let
+# that text escape as if it were a value — it has ended up in arithmetic
+# before. Emits nothing and returns non-zero instead.
+tc_note_value() {
+  local body rc
+  body="$(_tc_curl "$TC_HOST/kv/$1/$2" 2>/dev/null)"; rc=$?
+  if [ $rc -ne 0 ]; then
+    printf '%s\n' "$body" >&2
+    return $rc
+  fi
+  printf '%s' "$body" | grep -v '^!!' | grep -v '^[[:space:]]*$' | tail -1
+}
+
+# A note holding a counter. Emits 0 when absent or unreadable, never prose.
+tc_note_int() {
+  local v
+  v="$(tc_note_value "$1" "$2" 2>/dev/null)" || { echo 0; return 0; }
+  case "$v" in
+    ''|*[!0-9]*) echo 0 ;;
+    *) echo "$v" ;;
+  esac
+}
 tc_note_set() { _tc_curl "$TC_HOST/kv/$1/$2/set/$(tc_enc "$3")"; }
 
 # Compare-and-swap. 409 means you lost the race; the body carries the value
