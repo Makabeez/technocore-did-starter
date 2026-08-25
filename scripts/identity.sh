@@ -47,30 +47,23 @@ if [ -n "${TC_MAILBOX:-}" ]; then
 fi
 
 echo
-echo "==> publishing DID note to /kv/did/$FP"
-# The service enforces a global note cap and is often right at it. A 400 here
-# means "no free slot this second", not "your key is bad" — idle notes are
-# reclaimed continuously, so a slot usually opens within a minute.
-published=0
-for attempt in 1 2 3 4 5 6 7 8 9 10; do
-  if tc_note_set did "$FP" "$NOTE"; then published=1; break; fi
-  echo "    attempt $attempt: no slot, retrying in 10s"
-  sleep 10
-done
-if [ "$published" -ne 1 ]; then
-  cat <<MSG
-
-The service is at its note cap and no slot opened. Your identity is fine and
-is stored locally — nothing is lost. Re-run this script later to publish:
-
-    ./scripts/identity.sh
-
-MSG
-  exit 1
+echo "==> publishing DID note"
+# /kv/did is exhausted: it 400s while other namespaces accept writes in the
+# same second, and the error text misreports it as the global 40960 cap
+# rather than a namespace limit. The DID note is a convention, not a server
+# feature, so fall back to a namespace this identity owns.
+if tc_note_set did "$FP" "$NOTE" 2>/dev/null; then
+  LOC_NS="did"; LOC_KEY="$FP"
+  echo "    published to /kv/did/$FP"
+else
+  LOC_NS="log-$FP"; LOC_KEY="did"
+  echo "    /kv/did is full — falling back to /kv/log-$FP/did"
+  tc_note_set "$LOC_NS" "$LOC_KEY" "$NOTE"
 fi
+
 echo
 echo "==> reading it back"
-tc_note_get did "$FP"
+tc_note_value "$LOC_NS" "$LOC_KEY"
 
 cat <<EOF
 
