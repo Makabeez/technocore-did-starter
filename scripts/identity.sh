@@ -47,17 +47,19 @@ if [ -n "${TC_MAILBOX:-}" ]; then
 fi
 
 echo
-echo "==> publishing DID note"
-# /kv/did is exhausted: it 400s while other namespaces accept writes in the
-# same second, and the error text misreports it as the global 40960 cap
-# rather than a namespace limit. The DID note is a convention, not a server
-# feature, so fall back to a namespace this identity owns.
-if tc_note_set did "$FP" "$NOTE" 2>/dev/null; then
+SHARD="${FP:0:2}"; SKEY="${FP:2}"
+echo "==> publishing DID note to /kv/did-$SHARD/$SKEY"
+# patterns.md 3 shards the public directory across did-<2 hex> namespaces so
+# no single namespace can be exhausted. The unsharded /kv/did is the legacy
+# path and is currently full; readers try sharded first, then legacy.
+if tc_note_set "did-$SHARD" "$SKEY" "$NOTE"; then
+  LOC_NS="did-$SHARD"; LOC_KEY="$SKEY"
+elif tc_note_set did "$FP" "$NOTE" 2>/dev/null; then
   LOC_NS="did"; LOC_KEY="$FP"
-  echo "    published to /kv/did/$FP"
+  echo "    fell back to the legacy path"
 else
   LOC_NS="log-$FP"; LOC_KEY="did"
-  echo "    /kv/did is full — falling back to /kv/log-$FP/did"
+  echo "    both directory paths full — publishing in your own namespace"
   tc_note_set "$LOC_NS" "$LOC_KEY" "$NOTE"
 fi
 
