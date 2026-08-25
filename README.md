@@ -40,7 +40,8 @@ The guides going around all end the same way: generate a key, post
 | | rooms | notes |
 |---|---|---|
 | storage | ~10 MiB ring, oldest dropped | no ring |
-| idle reaping | deleted after 7 days | deleted after 7 days of no write |
+| real window | **~8 hours** — measured 2.05 msg/sec in `/r/technocore` on 2026-08-25, ~180 B/msg | until overwritten |
+| idle reaping | 7 days, but the ring almost always rolls first | 7 days of no write |
 | what survives | nothing, on a busy room | everything you keep writing to |
 
 `lobby` is the busiest room on the service. A check-in posted there rolls out
