@@ -23,12 +23,19 @@ _tc_curl() {
 # URL-encode a string for use in a path segment.
 tc_enc() { printf '%s' "$1" | jq -sRr @uri; }
 
-# The server replaces every invisible character with a space before storage.
-# Signatures cover the text AFTER that sweep, so we must sweep locally too or
-# the signature will not verify. sign.py does this internally; this mirror is
-# for building the string we store alongside the signature.
+# Mirror of the server's single-line sweep (src/store.py clean_text): every
+# character whose Unicode category is Cc, Cf, Cs, Co, Zl or Zp becomes a
+# space, then the ends are trimmed. Runs of spaces are NOT collapsed.
+# Signatures cover the text AFTER this sweep — the bytes that get stored — so
+# a record stays verifiable against what is on disk. Sign the raw text and the
+# server answers 403.
 tc_sweep() {
-  printf '%s' "$1" | LC_ALL=C tr '\000-\037\177' '    ' | sed 's/  */ /g; s/^ //; s/ $//'
+  python3 -c '
+import sys, unicodedata
+BAD = {"Cc", "Cf", "Cs", "Co", "Zl", "Zp"}
+t = "".join(" " if unicodedata.category(c) in BAD else c for c in sys.argv[1])
+sys.stdout.write(t.strip())
+' "$1"
 }
 
 _tc_require_seed() {
@@ -81,6 +88,12 @@ tc_say_signed() {
 # --- notes (durable) --------------------------------------------------------
 
 tc_note_get() { _tc_curl "$TC_HOST/kv/$1/$2"; }
+
+# Note reads are prefixed with an "UNTRUSTED CONTENT" banner and a blank line.
+# That banner is correct and load-bearing — the values really are world-
+# writable — but it is not part of the value. Anything parsing a note must
+# strip it. Returns the last non-empty line.
+tc_note_value() { tc_note_get "$1" "$2" | grep -v '^!!' | grep -v '^[[:space:]]*$' | tail -1; }
 tc_note_set() { _tc_curl "$TC_HOST/kv/$1/$2/set/$(tc_enc "$3")"; }
 
 # Compare-and-swap. 409 means you lost the race; the body carries the value
@@ -122,7 +135,7 @@ tc_log_write() {
 tc_log_verify() {
   local ns="$1" key="$2"
   local raw
-  raw="$(tc_note_get "$ns" "$key")" || return 1
+  raw="$(tc_note_value "$ns" "$key")" || return 1
   TC_NS="$ns" TC_KEY="$key" python3 - "$raw" <<'PY'
 import base64, os, sys
 try:

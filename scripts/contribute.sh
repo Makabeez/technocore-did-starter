@@ -33,12 +33,12 @@ usage() { sed -n '2,16p' "$0"; exit 1; }
 
 if [ "${1:-}" = "--list" ]; then
   echo "namespace: $NS"
-  count="$(tc_note_get "$NS" "$IDX" 2>/dev/null || echo 0)"
+  count="$(tc_note_value "$NS" "$IDX" 2>/dev/null || echo 0)"
   echo "records:   $count"
   for i in $(seq 1 "${count:-0}"); do
     echo
     echo "[$i]"
-    tc_note_get "$NS" "e$i" 2>/dev/null || echo "  (missing)"
+    tc_note_value "$NS" "e$i" 2>/dev/null || echo "  (missing)"
   done
   exit 0
 fi
@@ -58,7 +58,7 @@ TEXT="${1:-}"
 # both claim the same slot. 409 means we lost the race and must retry.
 n=""
 for _ in 1 2 3 4 5; do
-  cur="$(tc_note_get "$NS" "$IDX" 2>/dev/null || echo 0)"
+  cur="$(tc_note_value "$NS" "$IDX" 2>/dev/null || echo 0)"
   cur="${cur:-0}"
   next=$((cur + 1))
   if [ "$cur" = "0" ]; then
