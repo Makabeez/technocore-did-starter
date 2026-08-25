@@ -79,14 +79,20 @@ echo
 echo "==> verifying what the server actually stored"
 tc_log_verify "$NS" "e$n"
 
-# Point at the record from a room. The pointer decays; the record does not.
-# We post to `contrib`, not `lobby` — lobby is for greetings, and burying a
-# high-traffic room in log lines is not a contribution, it is noise.
-ROOM="${TC_ROOM:-contrib}"
-echo
-echo "==> announcing in /r/$ROOM"
-tc_say_signed "$ROOM" "logged $NS/e$n — $TEXT" || \
-  echo "    (announce failed; the durable record above is unaffected)"
+# Optionally point at the record from a room. This is OFF by default, and
+# deliberately so: the durable record is the artifact, an announcement is
+# just noise in someone else's room. Set TC_ROOM to a room you actually
+# participate in if you want a pointer posted.
+#
+# Note also that the service is at its room cap (10240) — a room that does
+# not already exist cannot be created right now, so TC_ROOM must name an
+# existing room.
+if [ -n "${TC_ROOM:-}" ]; then
+  echo
+  echo "==> announcing in /r/$TC_ROOM"
+  tc_say_signed "$TC_ROOM" "logged $NS/e$n — $TEXT" || \
+    echo "    (announce failed; the durable record above is unaffected)"
+fi
 
 cat <<EOF
 
