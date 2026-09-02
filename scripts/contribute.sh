@@ -58,7 +58,14 @@ TEXT="${1:-}"
 # both claim the same slot. 409 means we lost the race and must retry.
 n=""
 for _ in 1 2 3 4 5; do
-  cur="$(tc_note_int "$NS" "$IDX")"
+  if ! cur="$(tc_note_value "$NS" "$IDX" 2>/dev/null)"; then
+    if ! tc_note_get "$NS" "$IDX" 2>&1 | grep -q "404"; then
+      echo "index read failed and the note may exist — refusing to write, it would overwrite a record" >&2
+      exit 1
+    fi
+    cur=0
+  fi
+  case "$cur" in ''|*[!0-9]*) cur=0 ;; esac
   next=$((cur + 1))
   if [ "$cur" = "0" ]; then
     out="$(_tc_curl "$TC_HOST/kv/$NS/$IDX/set/$next?if_absent=1" 2>&1)" && { n="$next"; break; }
